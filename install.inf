@@ -1,0 +1,16 @@
+[info]
+title=Search Lite
+desc=(Fill the description)
+type=cudatext-plugin
+subdir=cuda_search_lite
+homepage=(Fill the GitHub repo URL)
+
+[item1]
+section=events
+events=on_exit
+
+[item2]
+section=commands
+caption=Search Lite\Search
+method=run
+
