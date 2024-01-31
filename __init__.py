@@ -7,6 +7,7 @@ MAX_FILE_SIZE_MB = 5
 DO_NOT_SEARCH = ['.git', '.cudatext', '__pycache__', '__trash']
 
 IS_WIN = os.name == 'nt'
+BOM = b'\xef\xbb\xbf'
 
 def trim_start(string, substring):
     return string[len(substring):] if string.startswith(substring) else string
@@ -85,6 +86,7 @@ class Command:
         
         self.memo.set_prop(PROP_RO, False)
         self.memo.set_prop(PROP_LEXER_FILE, ed.get_prop(PROP_LEXER_FILE))
+        #self.memo.set_prop(PROP_LEXER_FILE, 'Search results')
         self.memo.set_text_all('')
         self.memo.focus()
         self.search_results.clear()
@@ -225,7 +227,10 @@ class Command:
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
         if file_size_mb < MAX_FILE_SIZE_MB and not is_hidden(file_path):        
             try:
-                with open(file_path, 'r',encoding='utf-8') as file:
+                encoding='utf-8'
+                if open(file_path, mode='rb').read(3).startswith(BOM):
+                    encoding='utf-8-sig'
+                with open(file_path, 'r',encoding=encoding) as file:
                     for line,s in enumerate(file):
                         if search_string.lower() in s.lower():
                             yield (line, s)
