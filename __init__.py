@@ -1,7 +1,8 @@
-import os
+import os, time
 from cudatext import *
 from cudatext_keys import *
 
+DETECT_LEXER = False
 MAX_RESULTS_LINES = 100
 MAX_FILE_SIZE_MB = 5
 DO_NOT_SEARCH = ['.git', '.cudatext', '__pycache__', '__trash']
@@ -19,9 +20,10 @@ def is_hidden(path):
 
 class Command:
     def __init__(self):
-        self.input: Editor = None
-        self.path:  Editor = None
-        self.memo:  Editor = None
+        self.input:      Editor = None
+        self.path:       Editor = None
+        self.memo:       Editor = None
+        self.colors_ed:  Editor = None
         self.h_dlg = None
         self.search_results = {}
         self.in_process = False
@@ -50,19 +52,16 @@ class Command:
     
     def on_dlg_key_down(self, id_dlg, id_ctl, data='', info=''):
         key = id_ctl
-        if key not in (VK_TAB, VK_ENTER):
+        if key not in (VK_TAB, VK_ENTER, VK_F1, VK_F2, VK_F5):
             return
 
         if key == VK_TAB:
             if self.memo.get_prop(PROP_FOCUSED):
                 self.input.focus()
-                #focused_ctl = 'input' if self.memo.get_prop(PROP_FOCUSED) else 'memo'
-                
-                #dlg_proc(self.h_dlg, DLG_CTL_FOCUS, name=focused_ctl)
-                
-                return False
-        elif key == VK_ENTER:
-            if not self.memo.get_prop(PROP_FOCUSED):
+            else:
+                return True
+        elif key in (VK_ENTER, VK_F5):
+            if not self.memo.get_prop(PROP_FOCUSED) or key == VK_F5:
                 string = self.input.get_text_all().strip()
                 path = self.path.get_text_all().strip()
                 if string and path:
@@ -72,7 +71,36 @@ class Command:
                     self.terminate_search = True
             else:
                 self.goto_file()
-            return False
+        elif key in (VK_F1, VK_F2):
+            global DETECT_LEXER
+            DETECT_LEXER = key == VK_F2
+            dlg_proc(self.h_dlg, DLG_PROP_SET, {'cap': f'DETECT_LEXER: {DETECT_LEXER}'})
+        
+        return False
+            
+    
+    def paint_line(self, line, s, lexer):
+        s_index = s.index(':')+2
+        s = s[s_index:]
+        self.colors_ed.set_text_all(s)
+        
+        self.colors_ed.set_prop(PROP_LEXER_FILE, lexer)
+        self.colors_ed.action(EDACTION_LEXER_SCAN)
+        
+        tokens = self.colors_ed.get_token(TOKEN_LIST)
+        styles = lexer_proc(LEXER_GET_STYLES, lexer)
+        
+        if tokens:
+            for token in tokens:
+                style = styles[token['style']]
+                color_font = style['color_font']
+                self.memo.attr(
+                    MARKERS_ADD,
+                    color_font=color_font,
+                    x=s_index+token['x1'],
+                    y=line,
+                    len=len(token['str']),
+                )
     
     def search(self, string, path):
         # terminate ongoing search if any
@@ -85,8 +113,13 @@ class Command:
         self.in_process = True
         
         self.memo.set_prop(PROP_RO, False)
-        self.memo.set_prop(PROP_LEXER_FILE, ed.get_prop(PROP_LEXER_FILE))
-        #self.memo.set_prop(PROP_LEXER_FILE, 'Search results')
+        
+        if DETECT_LEXER:
+            self.memo.set_prop(PROP_LEXER_FILE, 'Search results')
+        else:
+            #self.memo.set_prop(PROP_LEXER_FILE, ed.get_prop(PROP_LEXER_FILE))
+            self.memo.set_prop(PROP_LEXER_FILE, 'Assembly')
+        
         self.memo.set_text_all('')
         self.memo.focus()
         self.search_results.clear()
@@ -107,6 +140,8 @@ class Command:
                 for line,s in self.search_file_for_string(f, string):
                     if self.terminate_search: raise TerminateSearch
                     
+                    start_time = time.time()
+                    
                     line_count = self.memo.get_line_count()
                     if line_count >= MAX_RESULTS_LINES:
                         raise MaxLinesReached
@@ -126,6 +161,19 @@ class Command:
                     # set caret
                     if line_count == 2:
                         self.memo.set_caret(s.index(':')+2, 1)
+                    
+                    # paint colors
+                    if DETECT_LEXER:
+                        result = lexer_proc(LEXER_DETECT, f)
+                        lexer = result if isinstance(result, str) \
+                           else result[0] if isinstance(result, tuple) \
+                           else ''
+                        self.paint_line(line_count-1, s, lexer)
+                    
+                    dlg_proc(self.h_dlg, DLG_PROP_SET,
+                    {
+                        'cap': f'Search Lite (line coloring time: {time.time()-start_time:.3f})'
+                    })
                     
             self.status('FINISHED')
         except TerminateSearch:
@@ -217,6 +265,13 @@ class Command:
         self.memo.set_prop(PROP_GUTTER_NUM, False)
         self.memo.set_prop(PROP_HILITE_CUR_LINE, True)
         self.memo.set_prop(PROP_HILITE_CUR_LINE_IF_FOCUS, True)
+        
+        n = dlg_proc(h, DLG_CTL_ADD, prop='editor')
+        dlg_proc(h, DLG_CTL_PROP_SET, index=n, prop={
+            'name': 'colors',
+            'vis': False,
+        })
+        self.colors_ed = Editor(dlg_proc(h, DLG_CTL_HANDLE, index=n))
         
         dlg_proc(h, DLG_SCALE)
         dlg_proc(h, DLG_SHOW_NONMODAL)
