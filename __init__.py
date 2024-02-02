@@ -202,6 +202,7 @@ class Command:
             'w': width,
             'h': height,
             'border': DBORDER_TOOL,
+            'topmost': True,
             'keypreview': True,
             'on_key_down': self.on_dlg_key_down,
             'on_close': self.on_dlg_close,
