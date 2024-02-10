@@ -263,7 +263,9 @@ class Command:
         self.memo.set_prop(PROP_GUTTER_FOLD, True)
         self.memo.set_prop(PROP_WRAP, False)
         self.memo.set_prop(PROP_UNDO_LIMIT, 0)
+        self.memo.set_prop(PROP_GUTTER_BM, False)
         self.memo.set_prop(PROP_GUTTER_NUM, False)
+        self.memo.set_prop(PROP_GUTTER_STATES, False)
         self.memo.set_prop(PROP_HILITE_CUR_LINE, True)
         self.memo.set_prop(PROP_HILITE_CUR_LINE_IF_FOCUS, True)
         
